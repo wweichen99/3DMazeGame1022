@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>迷宫导航 - POI标记</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #1a1a1a;
+            overflow: hidden;
+        }
+
+        #canvasContainer {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            background: linear-gradient(180deg, #2c3e50 0%, #1a1a2e 100%);
+        }
+
+        /* 迷你地图容器 */
+        #minimapContainer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #333;
+            border-radius: 4px;
+            padding: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            z-index: 100;
+        }
+
+        #minimapCanvas {
+            display: block;
+            border: 1px solid #ddd;
+        }
+
+        /* 3D视图模拟区域 */
+        #viewport3D {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 24px;
+        }
+
+        /* 控制面板 */
+        #controlPanel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            border-radius: 4px;
+            border: 2px solid #333;
+            color: #333;
+            font-size: 14px;
+            z-index: 100;
+        }
+
+        #controlPanel h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .poi-info {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+
+        .poi-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .poi-dot.start {
+            background: #00cc00;
+        }
+
+        .poi-dot.goal {
+            background: #cc0000;
+        }
+
+        #title {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvasContainer">
+        <div id="title">迷宫导航系统</div>
+        
+        <div id="viewport3D">
+            <div style="text-align: center; opacity: 0.7;">
+                <p>3D 视图区域</p>
+                <p style="font-size: 14px; margin-top: 10px;">右上角查看平面图</p>
+            </div>
+        </div>
+
+        <div id="minimapContainer">
+            <canvas id="minimapCanvas"></canvas>
+        </div>
+
+        <div id="controlPanel">
+            <h3>POI 标记</h3>
+            <div class="poi-info">
+                <div class="poi-dot start"></div>
+                <span>起点 (Start)</span>
+            </div>
+            <div class="poi-info">
+                <div class="poi-dot goal"></div>
+                <span>终点 (Goal)</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class MazePOISystem {
+            constructor() {
+                this.canvas = document.getElementById('minimapCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // 基于建筑俯视图的精确坐标
+                // 坐标单位：像素（基于原始图像尺寸）
+                this.pois = {
+                    start: {
+                        x: 80,      // 左上区域入口
+                        y: 120,
+                        color: '#00cc00',
+                        label: 'Start'
+                    },
+                    goal: {
+                        x: 920,     // 右下区域
+                        y: 650,
+                        color: '#cc0000',
+                        label: 'Goal'
+                    }
+                };
+
+                this.floorplanImage = new Image();
+                this.floorplanLoaded = false;
+                
+                this.init();
+            }
+
+            init() {
+                this.floorplanImage.onload = () => {
+                    this.floorplanLoaded = true;
+                    
+                    // 根据图像尺寸设置canvas大小
+                    const maxSize = 300;
+                    const imgRatio = this.floorplanImage.width / this.floorplanImage.height;
+                    
+                    if (imgRatio > 1) {
+                        this.canvas.width = maxSize;
+                        this.canvas.height = maxSize / imgRatio;
+                    } else {
+                        this.canvas.height = maxSize;
+                        this.canvas.width = maxSize * imgRatio;
+                    }
+                    
+                    this.render();
+                };
+                
+                this.floorplanImage.onerror = () => {
+                    console.warn('平面图未找到，使用默认尺寸');
+                    this.canvas.width = 300;
+                    this.canvas.height = 300;
+                    this.floorplanLoaded = false;
+                    this.render();
+                };
+
+                // 加载建筑俯视图
+                this.floorplanImage.src = 'floorplan.png';
+            }
+
+            render() {
+                const w = this.canvas.width;
+                const h = this.canvas.height;
+
+                // 清空画布
+                this.ctx.clearRect(0, 0, w, h);
+
+                if (this.floorplanLoaded) {
+                    // 绘制建筑俯视图
+                    this.ctx.drawImage(this.floorplanImage, 0, 0, w, h);
+                } else {
+                    // 如果图像未加载，显示灰色背景
+                    this.ctx.fillStyle = '#cccccc';
+                    this.ctx.fillRect(0, 0, w, h);
+                    this.ctx.fillStyle = '#666';
+                    this.ctx.font = '14px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('等待加载平面图...', w / 2, h / 2);
+                }
+
+                // 计算POI在canvas上的实际位置
+                const scaleX = w / (this.floorplanLoaded ? this.floorplanImage.width : 1280);
+                const scaleY = h / (this.floorplanLoaded ? this.floorplanImage.height : 960);
+
+                // 绘制POI标记
+                this.drawPOI(this.pois.start, scaleX, scaleY);
+                this.drawPOI(this.pois.goal, scaleX, scaleY);
+            }
+
+            drawPOI(poi, scaleX, scaleY) {
+                const x = poi.x * scaleX;
+                const y = poi.y * scaleY;
+                const radius = 6;
+
+                // 绘制圆点
+                this.ctx.fillStyle = poi.color;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, radius, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                // 白色边框
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+
+                // 绘制标签
+                this.ctx.font = '12px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'bottom';
+                
+                // 标签背景
+                const labelWidth = this.ctx.measureText(poi.label).width;
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                this.ctx.fillRect(x - labelWidth / 2 - 3, y - radius - 18, labelWidth + 6, 14);
+                
+                // 标签文字
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillText(poi.label, x, y - radius - 6);
+            }
+
+            // 更新POI位置（像素坐标）
+            updatePOI(poiName, x, y) {
+                if (this.pois[poiName]) {
+                    this.pois[poiName].x = x;
+                    this.pois[poiName].y = y;
+                    this.render();
+                }
+            }
+        }
+
+        // 初始化系统
+        const poiSystem = new MazePOISystem();
+
+        // 点击获取坐标（用于调试定位）
+        document.getElementById('minimapCanvas').addEventListener('click', (e) => {
+            if (!poiSystem.floorplanLoaded) return;
+            
+            const rect = e.target.getBoundingClientRect();
+            const canvasX = e.clientX - rect.left;
+            const canvasY = e.clientY - rect.top;
+            
+            // 转换为原始图像坐标
+            const scaleX = poiSystem.floorplanImage.width / poiSystem.canvas.width;
+            const scaleY = poiSystem.floorplanImage.height / poiSystem.canvas.height;
+            
+            const imgX = Math.round(canvasX * scaleX);
+            const imgY = Math.round(canvasY * scaleY);
+            
+            console.log(`原始图像坐标: x: ${imgX}, y: ${imgY}`);
+        });
+    </script>
+</body>
+</html>
