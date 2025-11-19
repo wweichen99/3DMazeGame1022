@@ -49,7 +49,7 @@
         document.getElementById("canvasContainer").appendChild(renderer.domElement);
 
         input = new Demonixis.Input();
-        levelHelper = new Demonixis.GameHelper.LevelHelper();
+        levelHelper = new Demonixis.GameHelper.LevelHelper(1, 1);
         cameraHelper = new Demonixis.GameHelper.CameraHelper(camera);
         cameraHelper.translation = 2.5;
         cameraHelper.rotation    = 0.01;
@@ -440,6 +440,11 @@
     }
 
     function endScreen() {
+        if (levelHelper.count === 1) {
+            alert("Good job, The game is over\n\nThanks you for playing!");
+            return;
+        }
+
         if (levelHelper.isFinished || levelHelper.isMobile) {
             alert("Good job, The game is over\n\nThanks you for playing!");
             document.location.href = "https://plus.google.com/u/0/114532615363095107351/posts";
@@ -455,9 +460,9 @@
     }
 
     // Level loading
-    function loadLevel(level) {
+    function loadLevel() {
         var ajax = new XMLHttpRequest();
-        ajax.open("GET", "assets/maps/maze3d-" + level + ".json", true);
+        ajax.open("GET", "assets/maps/maze-1.json", true);
         ajax.onreadystatechange = function() {
             if (ajax.readyState == 4) {
                 map = JSON.parse(ajax.responseText);
@@ -484,15 +489,8 @@
     window.onload = function() {
         initializeEngine();
 
-        var level = 1; // Get parameter
-        if (level > 0 || level <= levelHelper.count) {
-            levelHelper.current = level;
-            levelHelper.next = level + 1;
-            loadLevel(level);
-        } else {
-            levelHelper.current = 1;
-            levelHelper.next = 2;
-            loadLevel(1);
-        }
+        levelHelper.current = 1;
+        levelHelper.next = 2;
+        loadLevel();
     };
 })();
